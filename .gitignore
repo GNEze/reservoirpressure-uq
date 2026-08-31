@@ -1,0 +1,18 @@
+# Raw data (not redistributed — see data/README.md)
+data/*
+!data/README.md
+
+# Generated outputs (regenerate by running the pipeline)
+outputs/*
+!outputs/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

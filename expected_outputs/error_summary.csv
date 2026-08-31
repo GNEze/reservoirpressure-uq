@@ -1,0 +1,3 @@
+Method,MAE_psi,RMSE_psi,R2
+PI Method (clipped),1.3,6.74,0.999
+MBE,0.78,0.86,1.0
