@@ -1,6 +1,6 @@
 # Real-Time Reservoir Pressure UQ via Polynomial Chaos Expansion on Sparse Grids
 
-Companion code for Eze, G. N., Wang, Y., "Efficient Uncertainty Quantification of Real-Time Reservoir Pressure Estimates via Polynomial Chaos Expansion on Sparse Grids," submitted to *Geoenergy Science and Engineering*.
+Companion code for Eze, G. N., Wang, Y., "Efficient Uncertainty Quantification of Real-Time Reservoir Pressure Estimates via Polynomial Chaos Expansion on Sparse Grids." 
 
 ## Pipeline
 
