@@ -19,7 +19,7 @@ pdhms = pd.read_csv(os.path.join(out_dir, "digital_twin_PDHMS.csv"))
 mpfm  = pd.read_csv(os.path.join(out_dir, "digital_twin_MPFM.csv"))
 pavg  = pd.read_csv(os.path.join(out_dir, "digital_twin_true_Pavg.csv"))
 dt_params = pd.read_csv(os.path.join(out_dir, "digital_twin_params.csv"), index_col="Parameter")["Value"]
-TRUE_LAG  = int(dt_params["LAG_MINS"])   # reference only, never used to correct
+TRUE_LAG  = int(dt_params["LAG_MINS"])   # used only as reference 
 
 P_raw = pdhms["Pwf_psi"].values.copy()
 q_raw = mpfm["q_STB_per_min"].values.copy()
@@ -38,9 +38,6 @@ spike_mask = dP_per_sec > QC["spike_dP"]
 flag_P[spike_mask] = 1
 
 # Check 3: freeze -- rolling std < freeze_std over freeze_win seconds.
-# Vectorized via cumsum run-length: flag a frozen minute if it belongs to a
-# run of >= roll_win_min consecutive frozen minutes, extended backward to the
-# start of that run.
 SECS_PER_MIN = 60
 n_full_min   = n // SECS_PER_MIN
 P_min_std    = P_raw[:n_full_min * SECS_PER_MIN].reshape(n_full_min, SECS_PER_MIN).std(axis=1)
@@ -100,7 +97,7 @@ q_clean = pd.Series(q_clean).interpolate(method="linear", limit=30, limit_direct
 q_clean = pd.Series(q_clean).bfill().values
 
 # Blind transport-lag detection: cross-correlate -P (anti-correlated with q)
-# against q on the first 30 days, search +-120 min. TRUE_LAG is never used here.
+# against q on the first 30 days, with search +-120 min. 
 P_1min = P_clean[:n_full_min * SECS_PER_MIN].reshape(n_full_min, SECS_PER_MIN).mean(axis=1)
 q_1min = q_clean[:n_full_min]
 MAX_SEARCH_MINS = min(n_full_min, 30 * 1440)

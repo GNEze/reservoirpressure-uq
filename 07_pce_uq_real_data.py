@@ -12,7 +12,7 @@ np.random.seed(42)
 
 params = pd.read_csv(os.path.join(out_dir, "F14_parameters.csv"), index_col="Parameter")["Value"]
 Pi     = float(params["Pi"])
-J0_csv = float(params["J0"])   # q/(Pi-BHP) reference -- NOT used in the PCE; see J_base below
+J0_csv = float(params["J0"])   
 
 ct0        = 15.0e-6
 sig_P      = 2.0
@@ -48,8 +48,7 @@ Np_arr     = np.cumsum(q_arr)
 Pavg_final = float(np.nanmin(Pavg_ref))
 N_ooip     = float(Np_arr[-1]) / (ct0 * (Pi - Pavg_final))
 
-# J_base: global median local PI using Pavg_MBE as reference (not Pi -- Pavg_MBE
-# < Pi for most of field life, so J0_csv=q/(Pi-BHP) understates the true local PI)
+# J_base
 dd_all    = Pavg_ref - P_arr
 base_mask = (st_arr == 0) & (dd_all > DRAWDOWN_MIN) & np.isfinite(dd_all)
 J_base    = float(np.median(q_arr[base_mask] / dd_all[base_mask]))
@@ -59,8 +58,7 @@ print(f"N_ooip={N_ooip/1e6:.2f} MMSTB  Pavg_final={Pavg_final:.1f} psi")
 print(f"States: PI={(st_arr==0).sum()}  MBE={(st_arr==2).sum()}  skip={(st_arr==-1).sum()}")
 print(f"J_base={J_base:.3f} STB/d/psi  (J0_csv={J0_csv:.3f}, ratio={J_base/J0_csv:.1f}x)")
 
-"""PCE infrastructure: standardized d=4 joint (Uniform(-1,1) for J and ct dims,
-so per-day J_eff remapping doesn't require rebuilding chaospy nodes/weights/poly)"""
+"""PCE infrastructure: standardized d=4 joint"""
 
 def sobol_masks(poly_arr, n_inputs):
     n_terms = len(poly_arr)
@@ -80,9 +78,9 @@ def sobol_masks(poly_arr, n_inputs):
 
 joint = cp.J(
     cp.Normal(0, sig_P),   # eps_P    [0]
-    cp.Normal(0, 1.0),     # eps_q    [1] -- scaled by sig_q_frac*q(t) per day
-    cp.Uniform(-1, 1),     # u_eta    [2] -- mapped to 1/J_eff(t) range per day
-    cp.Uniform(-1, 1),     # u_zeta   [3] -- mapped to 1/ct range (fixed)
+    cp.Normal(0, 1.0),     # eps_q    [1] 
+    cp.Uniform(-1, 1),     # u_eta    [2] 
+    cp.Uniform(-1, 1),     # u_zeta   [3] 
 )
 poly           = cp.generate_expansion(PCE_ORDER, joint, normed=True)
 nodes, weights = cp.generate_quadrature(SPARSE_LEVEL, joint, rule="gaussian", sparse=True)
@@ -99,12 +97,12 @@ poly_at_mc_epi = np.array(poly(*mc_epi), dtype=float)
 
 S1_mask, ST_mask, is_const = sobol_masks(poly, 4)
 
-# Fixed zeta physical values from standardized nodes (ct bounds never change)
+# Fixed zeta physical values from standardized nodes 
 zeta_phys_nodes = zeta_lo + (nodes[3] + 1.0) / 2.0 * (zeta_hi - zeta_lo)
 
 print(f"Standardized joint: terms={n_terms}, nodes={n_nodes}")
 
-"""Rolling J recalibration: 48-day lookback, Pavg_MBE as reference"""
+"""Rolling J recalibration: 48-day lookback using Pavg_MBE as reference"""
 
 J_eff_arr  = np.full(n_days, J_base)
 drift_flag = np.zeros(n_days, dtype=bool)
@@ -197,7 +195,7 @@ for i in range(n_days):
 n_pi, n_mbe, n_none = (pce_method == "PI").sum(), (pce_method == "MBE").sum(), (pce_method == "none").sum()
 print(f"PI={n_pi}  MBE={n_mbe}  Interpolated(skip)={n_none}")
 
-"""Error statistics, coverage, Sobol' summary"""
+"""Error statistics, coverage, and Sobol' summary"""
 
 valid = pce_method != "none"
 ref_v, est_v = Pavg_ref[valid], Pavg_mean[valid]
@@ -221,7 +219,7 @@ print("Mean first-order Sobol' indices:")
 for lbl, v in zip(labels, S1_out):
     print(f"  {lbl:22s}: {v:.4f}")
 
-"""Save UQ_results_real.csv, Sobol_indices_real.csv, drift_events_real.csv"""
+"""Save UQ_results_real.csv, Sobol_indices_real.csv, and drift_events_real.csv"""
 
 def interp_nan(arr):
     nans = np.isnan(arr)
@@ -262,8 +260,7 @@ df_drift.to_csv(os.path.join(out_dir, "drift_events_real.csv"), index=False)
 
 print("Saved: outputs/{UQ_results_real,Sobol_indices_real,drift_events_real}.csv")
 
-"""Real F-14 diagnostics: inter-model divergence (|P_PI-P_MBE|) vs intra-method
-uncertainty (sigma_PCE), and drift-event J_eff distribution"""
+"""Diagnostics: inter-model divergence vs intra-method uncertainty, drift J_eff"""
 
 pi_v = df_uq[df_uq["pce_method"] == "PI"]
 diff_abs   = np.abs(pi_v["Pavg_mean_pce"].values - pi_v["Pavg_ref_MBE"].values)
@@ -282,8 +279,7 @@ J_eff_pcts = np.percentile(J_effs, pcts)
 print(f"Drift events: {len(df_drift)}  |  J_eff range=[{J_effs.min():.1f}, {J_effs.max():.1f}] STB/d/psi")
 print(f"J_eff percentiles (5/25/50/75/95): {[f'{v:.1f}' for v in J_eff_pcts]}")
 
-"""Real vs digital-twin input distributions -- explains the Sobol' shift in
-S1_eP between the twin (near 0) and the real record (~0.21)"""
+"""Real vs digital-twin input distributions"""
 
 twin_pavg = pd.read_csv(os.path.join(out_dir, "digital_twin_true_Pavg.csv"))
 twin_dt   = pd.read_csv(os.path.join(out_dir, "Pavg_estimates.csv"))
@@ -317,14 +313,14 @@ pd.DataFrame({
 }).to_csv(os.path.join(out_dir, "real_vs_twin_inputs.csv"), index=False)
 print("Saved: outputs/real_vs_twin_inputs.csv")
 
-"""Figure 12: real-data UQ time series -- Pavg with dual CI, PCE std + J_eff,
-aleatory/epistemic CI decomposition"""
+"""Figure 13: real-data UQ time series"""
 
 plt.rcParams.update({"font.family": "serif", "font.size": 9,
                      "axes.titlesize": 10, "axes.labelsize": 9, "figure.dpi": 300})
 
-BLUE, GREEN, ORANGE, PURPLE = "#127345", "#58AB2A", "#C29A5B", "#000000"
-RED, GREY, AMBER = "#C62828", "#9E9E9E", "#FF6F00"
+# Same colour_s mapping as Figures 7/8 (eps_P=red, eps_q=orange, J=blue, ct=green)
+RED, ORANGE, BLUE, GREEN = "#d62728", "#ff7f0e", "#1f77b4", "#2ca02c"
+GREY, AMBER = "#9E9E9E", "#FF6F00"
 LBLUE, LRED = "#BBDEFB", "#FFCDD2"
 
 fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
@@ -373,11 +369,11 @@ ax.grid(True, alpha=0.3)
 ax.set_title("(C) Aleatory vs Epistemic Uncertainty Decomposition", fontsize=10)
 
 plt.tight_layout()
-fig.savefig(os.path.join(out_dir, "fig12_real_uq_timeseries.png"), bbox_inches="tight")
+fig.savefig(os.path.join(out_dir, "fig13_real_uq_timeseries.png"), bbox_inches="tight")
 plt.close(fig)
-print("Saved: outputs/fig12_real_uq_timeseries.png")
+print("Saved: outputs/fig13_real_uq_timeseries.png")
 
-"""Figure 13: time-varying Sobol' attribution map"""
+"""Figure 14: time-varying Sobol' attribution map"""
 
 fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
 fig.suptitle("Real Volve F-14 H: Time-Varying Sobol Sensitivity Attribution",
@@ -393,7 +389,7 @@ ax = axes[0]
 stk = np.stack([np.nan_to_num(s1_eP), np.nan_to_num(s1_eq),
                  np.nan_to_num(s1_J),  np.nan_to_num(s1_ct)], axis=0)
 ax.stackplot(dates, stk[0], stk[1], stk[2], stk[3],
-             colors=[BLUE, GREEN, ORANGE, PURPLE], alpha=0.85,
+             colors=[RED, ORANGE, BLUE, GREEN], alpha=0.85,
              labels=["ep_P (BHP sensor)", "ep_q (flow meter)",
                      "J (PI uncertainty)", "ct (compressibility)"])
 ax.set_ylabel("First-order Sobol S1", fontsize=10)
@@ -406,8 +402,8 @@ ax.fill_between(dates, y0_a, y1_a, where=mbe_mask, color="lightgrey", alpha=0.4,
 ax.set_title("(A) First-Order Sobol Indices (21-day rolling average)", fontsize=10)
 
 ax = axes[1]
-dom_colors_map = {"ep_P (BHP noise)": BLUE, "ep_q (flow noise)": GREEN,
-                   "J (PI uncert.)": ORANGE, "ct (compress.)": PURPLE, "unknown": GREY}
+dom_colors_map = {"ep_P (BHP noise)": RED, "ep_q (flow noise)": ORANGE,
+                   "J (PI uncert.)": BLUE, "ct (compress.)": GREEN, "unknown": GREY}
 for j, d in enumerate(dates):
     ax.bar(d, 1, width=1.0, color=dom_colors_map.get(dominant[j], GREY), alpha=0.7)
 ax.set_yticks([])
@@ -416,14 +412,14 @@ ax.set_xlabel("Date", fontsize=10)
 
 from matplotlib.patches import Patch
 ax.legend(handles=[
-    Patch(color=BLUE,   label="ep_P dominant"),
-    Patch(color=GREEN,  label="ep_q dominant"),
-    Patch(color=ORANGE, label="J dominant"),
-    Patch(color=PURPLE, label="ct dominant"),
+    Patch(color=RED,    label="ep_P dominant"),
+    Patch(color=ORANGE, label="ep_q dominant"),
+    Patch(color=BLUE,   label="J dominant"),
+    Patch(color=GREEN,  label="ct dominant"),
 ], fontsize=9, loc="upper right", ncol=2)
 ax.set_title("(B) Dominant Uncertainty Source per Day", fontsize=10)
 
 plt.tight_layout()
-fig.savefig(os.path.join(out_dir, "fig13_real_sobol_map.png"), bbox_inches="tight")
+fig.savefig(os.path.join(out_dir, "fig14_real_sobol_map.png"), bbox_inches="tight")
 plt.close(fig)
-print("Saved: outputs/fig13_real_sobol_map.png")
+print("Saved: outputs/fig14_real_sobol_map.png")

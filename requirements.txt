@@ -1,10 +1,7 @@
-# Exact versions confirmed from the original runtime environment.
+# Library versions used for this implementation
 numpy==2.1.3
 chaospy==4.3.21
 pandas==2.2.3
-
-# Not independently version-logged in the original environment; latest
-# versions compatible with the pins above.
 scipy==1.18.0
 matplotlib==3.11.1
 openpyxl==3.1.5

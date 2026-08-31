@@ -15,8 +15,8 @@ Pi       = params["Pi"]        # psi
 J0       = params["J0"]        # STB/day/psi
 Np_total = params["Np_total"]  # STB, whole 3,056-day production history
 
-ct         = 15e-6              # psi^-1, total compressibility
-Pavg_final = 200.0 * BAR2PSI    # 200 bar Volve 8.5-year depletion anchor -> psi
+ct         = 15e-6              
+Pavg_final = 200.0 * BAR2PSI    
 N_ooip     = Np_total / (ct * (Pi - Pavg_final))
 
 # Real Volve F-14 daily oil volumes, first 365 producing days

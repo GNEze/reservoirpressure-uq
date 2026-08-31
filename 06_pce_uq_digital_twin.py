@@ -65,9 +65,7 @@ print(f"Days: {n_days}  N_ooip: {N_ooip:,.0f} STB")
 """PCE infrastructure: single d=4 joint shared by both forward models"""
 
 def sobol_masks(poly_arr, n_inputs):
-    # For each basis polynomial, read its own monomial exponents (not the
-    # array-level exponent table, which is shared across all terms and does
-    # not reflect individual-term dependency in chaospy).
+    # per-polynomial exponents, not chaospy's shared array-level table
     n_terms = len(poly_arr)
     depends = np.zeros((n_inputs, n_terms), dtype=bool)
     for i in range(n_terms):
@@ -85,7 +83,7 @@ def sobol_masks(poly_arr, n_inputs):
 
 joint = cp.J(
     cp.Normal(0, sig_P),        # eps_P  [0]
-    cp.Normal(0, 1.0),          # eps_q  [1] -- scaled by sig_q_frac*q(t) per day
+    cp.Normal(0, 1.0),          # eps_q  [1] -- scaled by sig_q/q(t) per day
     cp.Uniform(eta_lo, eta_hi), # eta = 1/J  [2]
     cp.Uniform(zeta_lo, zeta_hi), # zeta = 1/ct  [3]
 )
@@ -131,7 +129,7 @@ for i in range(n_days):
             coeffs = poly_at_nodes_w @ model_evals
 
             # Physical bound Pavg<=Pi applied post hoc to MC draws, not inside
-            # the projection -- avoids the Gibbs phenomenon (Sec. 3.4).
+            # the projection to avoid the Gibbs phenomenon (Sec. 3.4).
             pce_mc     = np.clip(coeffs @ poly_at_mc,     0.0, Pi)
             pce_mc_epi = np.clip(coeffs @ poly_at_mc_epi, 0.0, Pi)
             pce_method[i] = "PI"
@@ -159,8 +157,7 @@ for i in range(n_days):
         Pavg_skew[i] = stats.skew(pce_mc, bias=False)
         Pavg_kurt[i] = stats.kurtosis(pce_mc, bias=False)
 
-        # Sobol' indices from the smooth (unclipped) PCE coefficients --
-        # analytically exact for the unclipped model (Sec. 3.5).
+        # Sobol' indices from the smooth (unclipped) PCE coefficients 
         var_pce = float(np.dot(coeffs[~is_const], coeffs[~is_const]))
         if var_pce > 1e-12:
             c2 = coeffs ** 2
@@ -304,7 +301,7 @@ print("Saved: outputs/{UQ_results,Sobol_indices,pce_convergence}.csv")
 plt.rcParams.update({"font.family": "serif", "font.size": 9,
                      "axes.titlesize": 10, "axes.labelsize": 9, "figure.dpi": 300})
 
-"""Figure 6: PCE convergence, clipped vs unclipped"""
+"""Figure 4: PCE convergence, clipped vs unclipped"""
 
 orders_arr = df_conv["p"].values
 err_nc, err_c = df_conv["err_noclip_pct"].values, df_conv["err_clip_pct"].values
@@ -333,11 +330,11 @@ ax.text(0.02, 0.98, f"MC reference\nvar_noclip = {var_MC_noclip:,.0f} psi²\nvar
         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.85))
 
 plt.tight_layout()
-fig.savefig(os.path.join(out_dir, "fig06_pce_convergence.png"), bbox_inches="tight")
+fig.savefig(os.path.join(out_dir, "fig04_pce_convergence.png"), bbox_inches="tight")
 plt.close(fig)
-print("Saved: outputs/fig06_pce_convergence.png")
+print("Saved: outputs/fig04_pce_convergence.png")
 
-"""Figure 5: PCE mean + dual CI vs ground truth, 3 stacked panels"""
+"""Figure 6: PCE mean + dual CI vs ground truth, 3 stacked panels"""
 
 t_d = np.arange(n_days)
 mbe_days = np.where(pce_method == "MBE")[0]
@@ -377,9 +374,9 @@ ax.set(xlabel="Day", ylabel=r"$\sigma_{\bar{P}}$ (psi)", title="(C) PCE Standard
 ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
-fig.savefig(os.path.join(out_dir, "fig05_pavg_timeseries.png"), bbox_inches="tight")
+fig.savefig(os.path.join(out_dir, "fig06_pavg_timeseries.png"), bbox_inches="tight")
 plt.close(fig)
-print("Saved: outputs/fig05_pavg_timeseries.png")
+print("Saved: outputs/fig06_pavg_timeseries.png")
 
 """Figure 7: First-order Sobol' attribution map, 2 stacked panels"""
 
@@ -390,7 +387,7 @@ s1_ct = np.where(np.isnan(Sobol_S1[:, 3]), 0, Sobol_S1[:, 3])
 colors_s = ["#d62728", "#ff7f0e", "#1f77b4", "#2ca02c"]
 
 fig, axes = plt.subplots(2, 1, figsize=(12, 7))
-fig.suptitle("First-Order Sobol' Attribution Map — Time-Dependent Sensitivity", fontsize=10, fontweight="bold")
+fig.suptitle("First-Order Sobol' Attribution Map", fontsize=10, fontweight="bold")
 
 ax = axes[0]
 ax.stackplot(t_d, s1_eP, s1_eq, s1_J, s1_ct,
@@ -399,7 +396,7 @@ ax.stackplot(t_d, s1_eP, s1_eq, s1_J, s1_ct,
 for md in mbe_days:
     ax.axvline(md, color="gray", lw=0.5, alpha=0.5)
 ax.set(xlabel="Day", ylabel="First-order Sobol' index S₁",
-       title="(A) Stacked First-Order Sobol' Indices — PI days dominated by J; MBE days by cₜ", ylim=(0, 1.05))
+       title="(A) Stacked First-Order Sobol' Indices", ylim=(0, 1.05))
 ax.legend(fontsize=9, ncol=4, loc="lower right"); ax.grid(True, alpha=0.2)
 
 ax = axes[1]
@@ -433,14 +430,16 @@ for bars in (b1, b2, b3):
         h = b.get_height()
         if h > 0.01:
             ax.text(b.get_x() + b.get_width() / 2, h + 0.01, f"{h:.3f}", ha="center", va="bottom", fontsize=7)
-ax.set(xticks=x4, xticklabels=labels_s, ylabel="Mean S₁", title="(A) First-Order Sobol' by Mode", ylim=(0, 1.15))
+ax.set(xticks=x4, xticklabels=labels_s, ylabel=r"Mean $S_1$", title="(A) First-Order Sobol' by Mode", ylim=(0, 1.15))
 ax.legend(fontsize=8); ax.grid(True, alpha=0.3, axis="y")
 
 ax = axes[1]
-ax.bar(x4 - 0.15, S1_pi,  0.28, label="S₁ (PI)",    color="#2ca02c", edgecolor="k", lw=0.5)
-ax.bar(x4 + 0.15, ST_all, 0.28, label="S_T (all)", color="#9467bd", edgecolor="k", lw=0.5, alpha=0.7)
+# S1 and ST must come from the same day-subset (S_T >= S1 always holds otherwise)
+ax.bar(x4 - 0.15, S1_all, 0.28, label=r"$S_1$ (all)", color="#2ca02c", edgecolor="k", lw=0.5)
+ax.bar(x4 + 0.15, ST_all, 0.28, label=r"$S_T$ (all)", color="#9467bd", edgecolor="k", lw=0.5, alpha=0.7)
 ax.set(xticks=x4, xticklabels=labels_s, ylabel="Sobol' index",
-       title="(B) S₁ vs S_T — Interaction effects negligible\n(S_T ≈ S₁ for all inputs)", ylim=(0, 1.15))
+       title=r"(B) $S_1$ vs $S_T$",
+       ylim=(0, 1.15))
 ax.legend(fontsize=8); ax.grid(True, alpha=0.3, axis="y")
 
 plt.tight_layout()
@@ -536,11 +535,6 @@ plt.close(fig)
 print("Saved: outputs/fig02_input_distributions.png")
 
 """Figure 3: Smolyak sparse grid vs full tensor product"""
-
-# Headline node counts: 165 (verified above) vs the literal 5-point-per-
-# dimension full tensor product (5^4=625), matching the paper's own
-# definition -- NOT chaospy's generate_quadrature(..., sparse=False), which
-# returns a different (level+1)-point convention (256 at level=3).
 n_full_5pt = 5 ** 4
 pct_reduction = (1 - n_nodes / n_full_5pt) * 100
 
@@ -550,7 +544,7 @@ fig.suptitle(r"Smolyak Sparse Grid vs Full Tensor Product — $d=4$, $\ell=3$", 
 ax = axes[0]
 ax.scatter(nodes[0], nodes[1], s=20, color="#1f77b4", alpha=0.7, edgecolors="k", lw=0.3)
 ax.set(xlabel=r"$\xi_1$ ($\varepsilon_P$, normalised)", ylabel=r"$\xi_2$ ($\varepsilon_q$, normalised)",
-       title=f"(A) Smolyak Sparse Grid\n{n_nodes} nodes (ε_P–ε_q projection)")
+       title=f"(A) Smolyak Sparse Grid\n{n_nodes} nodes ($\\varepsilon_P$–$\\varepsilon_q$ projection)")
 ax.grid(True, alpha=0.3)
 
 grid_1d = np.linspace(-3, 3, 5)
@@ -645,11 +639,8 @@ fig.savefig(os.path.join(out_dir, "fig10_standardised_residuals.png"), bbox_inch
 plt.close(fig)
 print(f"Saved: outputs/fig10_standardised_residuals.png  (z_mean={z_mean:.4f} z_std={z_std:.4f} KS={ks_stat:.4f})")
 
-"""Figure 11: PCE vs direct Monte Carlo, reference day (highest-variance PI day)"""
+"""Figure 12: PCE vs direct Monte Carlo, reference day (highest-variance PI day)"""
 
-# Real PCE-surrogate evaluation (coefficients dotted with sampled basis
-# functions), not a Gaussian approximation of the saved mean/std -- kept
-# consistent with how every other PCE result in this script is computed.
 pi_std = np.where(pce_method == "PI", Pavg_std, -np.inf)
 ref_day_mc = int(np.nanargmax(pi_std))
 Pwf_ref287 = float(P_arr[ref_day_mc])
@@ -666,8 +657,6 @@ eta_11   = rng11.uniform(eta_lo, eta_hi, N_MC_11)
 mc_raw_11  = Pwf_ref287 + eps_P_11 + (q_ref287 + eps_q_11) * eta_11
 mc_clip_11 = np.clip(mc_raw_11, 0.0, Pi)
 
-# PCE surrogate: fit coefficients at the quadrature nodes (as in the main
-# loop), then evaluate at N_MC_11 fresh MC draws from the joint.
 eps_q_n_11 = nodes[1] * sig_q_287
 model_evals_11 = Pwf_ref287 + nodes[0] + (q_ref287 + eps_q_n_11) * nodes[2]
 coeffs_11 = poly_at_nodes_w @ model_evals_11
@@ -706,14 +695,11 @@ ax.set(xlabel=r"$\bar{P}$ (psi)", ylabel="CDF", title=f"(B) CDF Comparison\n|Δ�
 ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
-fig.savefig(os.path.join(out_dir, "fig11_mc_vs_pce.png"), bbox_inches="tight")
+fig.savefig(os.path.join(out_dir, "fig12_mc_vs_pce.png"), bbox_inches="tight")
 plt.close(fig)
-print(f"Saved: outputs/fig11_mc_vs_pce.png  (|dmean|={d_mean_11:.2f} psi  |dstd|={d_std_11:.2f} psi)")
+print(f"Saved: outputs/fig12_mc_vs_pce.png  (|dmean|={d_mean_11:.2f} psi  |dstd|={d_std_11:.2f} psi)")
 
-"""Prior stress test: shift J's prior to [J0*1.10, J0*1.40], excluding J0,
-and confirm coverage collapses -- demonstrates that calibration on the
-digital twin is earned by the prior containing the true J, not by
-algorithmic circularity (Sec. 4.4)."""
+"""Figure 11: prior-shift stress test (non-circularity check)"""
 
 J_lo_sh, J_hi_sh     = J0 * 1.10, J0 * 1.40
 eta_lo_sh, eta_hi_sh = 1.0 / J_hi_sh, 1.0 / J_lo_sh
@@ -775,3 +761,18 @@ print(f"Prior stress test: J shifted to [{J_lo_sh:.3f}, {J_hi_sh:.3f}] (excludes
 print(f"  Shifted MAE={MAE_sh:.2f} psi (vs original {MAE:.2f} psi)")
 print(f"  Shifted 95% CI coverage={cov_sh:.2f}% (vs original {cover_tot:.2f}%)")
 print("Saved: outputs/prior_stress_test.csv")
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.fill_between(t_d[pi_sh], p025_sh[:n_common][pi_sh], p975_sh[:n_common][pi_sh],
+                 alpha=0.20, color="#1f77b4", label=f"95% CI, shifted prior — cov={cov_sh:.0f}%")
+ax.plot(t_d[pi_sh], Pm_sh[:n_common][pi_sh], color="#1f77b4", lw=1.6,
+        label=f"PCE mean, shifted prior (MAE={MAE_sh:.0f} psi)")
+ax.plot(t_d[pi_sh], Pt[pi_sh], color="black", lw=2.0, ls="--", label="True P̄")
+ax.set(xlabel="Day (stable-PI days only)", ylabel=r"$\bar{P}$ (psi)",
+       title="Prior-Shift Stress Test: 95% CI vs Ground Truth")
+ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+fig.savefig(os.path.join(out_dir, "fig11_prior_stress_test.png"), bbox_inches="tight")
+plt.close(fig)
+print("Saved: outputs/fig11_prior_stress_test.png")

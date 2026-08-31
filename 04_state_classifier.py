@@ -28,7 +28,7 @@ N = min(len(t_min), len(q_1min))
 t_min, P_1min, q_1min = t_min[:N], P_1min[:N], q_1min[:N]
 
 # dP/dt, dQ/dt (psi/min, STB/min/min): central finite difference over the
-# window, boundaries held at the nearest interior value
+# window. Boundaries are held at the nearest interior value
 win  = CFG["window_min"]
 half = win // 2
 dP_dt = np.zeros(N)
@@ -45,7 +45,7 @@ q_roll_mean = pd.Series(q_1min).rolling(window=win, min_periods=win // 2, center
 q_roll_mean = q_roll_mean.bfill().ffill().values
 
 # State 2, pressure buildup: q below shut-in threshold, actively recovering.
-# Flat shut-ins (q~=0, dP/dt~=0) stay Stable (state 0), not Buildup.
+# Flat shut-ins (q~=0, dP/dt~=0) are labelled Stable (state 0), and not Buildup.
 state = np.full(N, 0, dtype=int)
 buildup_mask = (q_roll_mean < CFG["q_shutin_thr"]) & (dP_dt > CFG["buildup_dP_min"])
 state[buildup_mask] = 2

@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-warnings.filterwarnings("ignore")  # expected: some daily windows have no State-0 minute
+warnings.filterwarnings("ignore")  # This is because some daily windows have no State-0 minute
 
 folder  = os.path.dirname(os.path.abspath(__file__))
 out_dir = os.path.join(folder, "outputs")
@@ -19,8 +19,9 @@ ct       = 15.0e-6
 dt_params = pd.read_csv(os.path.join(out_dir, "digital_twin_params.csv"), index_col="Parameter")["Value"]
 N_ooip    = float(dt_params["N_ooip"])
 
-J_DRIFT_THR = 0.15     # flag if J deviates >15% from J0
-RECALIB_WIN = 48 * 60  # 48 hours, in minutes
+J_DRIFT_THR  = 0.15     # flag if J deviates >15% from J0
+RECALIB_WIN  = 48 * 60  # 48 hours, in minutes
+DRAWDOWN_MIN = 100.0    # psi, minimum drawdown admitted to J recalibration (matches 07/08)
 
 df_states = pd.read_csv(os.path.join(out_dir, "operational_states.csv"))
 df_pavg   = pd.read_csv(os.path.join(out_dir, "digital_twin_true_Pavg.csv"))
@@ -35,9 +36,7 @@ Pavg_true    = df_pavg["Pavg_true"].values
 q_daily_true = df_pavg["q_daily"].values   # STB/day, same rates the twin used for Pwf
 
 # Method 1: PI with rolling 48-hr J recalibration (paper Eq. 1).
-# MBE Pavg is used as the recalibration reference (accurate running estimate,
-# R2=1.000): using Pi as the reference instead would make J converge to
-# q/(Pi-Pwf), pulling Pavg_PI -> Pi as the reservoir depletes.
+# MBE Pavg is used as the recalibration reference.
 N = len(t_min)
 Pavg_PI      = np.full(N, np.nan)
 J_effective  = np.full(N, J0)
@@ -47,8 +46,7 @@ stable_mask  = state == 0
 Np_lookup    = np.cumsum(q_1min)
 Pavg_MBE_ref = np.clip(Pi - Np_lookup / (N_ooip * ct), 0, Pi)
 
-# Daily production-report rate: matches the exact Pwf basis, avoids the
-# lag/noise boundary error a minute-level rate would introduce.
+# Daily production-report rate
 day_idx  = np.minimum((t_min / 1440.0).astype(int), len(q_daily_true) - 1)
 q_for_pi = q_daily_true[day_idx]
 
@@ -63,7 +61,7 @@ for i in range(N):
             Pwf_win   = P_1min[look_back:i][win_mask]
             P_ref_win = Pavg_MBE_ref[look_back:i][win_mask]
             draw      = P_ref_win - Pwf_win
-            pos       = draw > 5.0
+            pos       = draw > DRAWDOWN_MIN
             if pos.sum() >= 10:
                 J_candidate = np.nanmedian(q_win[pos] / draw[pos])
                 if J_candidate > 0:
@@ -74,8 +72,6 @@ for i in range(N):
     if abs(J_current - J0) / J0 > J_DRIFT_THR:
         J_drift_flag[i] = True
 
-# PI estimate only when producing (q>0); during shut-in Pwf is recovering,
-# not equal to Pavg, so those minutes stay NaN and are excluded downstream.
 producing_mask = stable_mask & (q_for_pi > 0)
 Pavg_PI[producing_mask] = P_1min[producing_mask] + (q_for_pi[producing_mask] / J_effective[producing_mask])
 Pavg_PI = np.clip(Pavg_PI, 0, Pi)
@@ -100,7 +96,7 @@ nc = min(len(Pavg_true), len(Pavg_MBE_d), len(Pavg_PI_d))
 MAE_MBE, RMSE_MBE, R2_MBE = metrics(Pavg_MBE_d[:nc], Pavg_true[:nc])
 MAE_PI,  RMSE_PI,  R2_PI  = metrics(Pavg_PI_d[:nc],  Pavg_true[:nc])
 
-# Real Volve F-14 daily Pavg pathway (3,056 days), input to 07_pce_uq_real_data.py
+# Real Volve F-14 daily Pavg
 volve = pd.read_excel(os.path.join(folder, "data", "Volve production data.xlsx"),
                        sheet_name="Daily Production Data")
 f14   = volve[volve["NPD_WELL_BORE_NAME"] == "15/9-F-14"].sort_values("DATEPRD").reset_index(drop=True)
@@ -113,6 +109,25 @@ oil_stb = oil_sm3 * SM3_STB
 bhp_valid = bhp_bar > 0
 producing = bhp_valid & (oil_stb > 0)
 shutin    = bhp_valid & ~(oil_stb > 0)
+
+# QC pass on raw daily BHP (producing days only): flags isolated dropouts via a
+# 7-day rolling median and interpolates over them.
+BHP_QC_WINDOW = 7
+BHP_QC_THRESHOLD = 800.0  # psi
+
+prod_idx = np.where(producing)[0]
+bhp_prod = pd.Series(bhp_psi[prod_idx])
+roll_med = bhp_prod.rolling(window=BHP_QC_WINDOW, center=True, min_periods=4).median()
+is_outlier_prod = ((bhp_prod - roll_med).abs() > BHP_QC_THRESHOLD).values
+
+n_bhp_outliers = int(is_outlier_prod.sum())
+if n_bhp_outliers > 0:
+    bhp_prod_clean = bhp_prod.copy()
+    bhp_prod_clean[is_outlier_prod] = np.nan
+    bhp_prod_clean = bhp_prod_clean.interpolate(method="linear", limit_direction="both")
+    bhp_psi[prod_idx] = bhp_prod_clean.values
+print(f"BHP QC: flagged and interpolated {n_bhp_outliers} producing-day outlier(s) "
+      f"(|dev| > {BHP_QC_THRESHOLD:.0f} psi from {BHP_QC_WINDOW}-day rolling median)")
 
 Np_cum_volve   = np.cumsum(oil_stb)
 Pavg_MBE_volve = np.clip(Pi - Np_cum_volve / (N_ooip * ct), 0, Pi)

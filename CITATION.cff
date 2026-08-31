@@ -5,13 +5,13 @@ type: software
 authors:
   - family-names: "Eze"
     given-names: "Gabriel Nwachuku"
-    affiliation: "King Fahd University of Petroleum & Minerals"
+    affiliation: "College of Petroleum Engineering and Geosciences, King Fahd University of Petroleum & Minerals"
 abstract: >
   Non-intrusive polynomial chaos expansion (PCE) on a Smolyak sparse grid for
   real-time uncertainty quantification of average reservoir pressure estimates,
   validated against a digital twin of Volve well 15/9-F-14 H and applied to the
   real 3,056-day production record, with a drawdown-weighted Bayesian
-  model-averaging layer reconciling productivity-index and material-balance
+  model-averaging layer that reconciles productivity-index and material-balance
   model-form divergence.
 keywords:
   - reservoir pressure estimation
@@ -22,20 +22,17 @@ keywords:
   - Bayesian model averaging
   - digital twin
   - smart wells
-license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"
-repository-code: "[repository URL — to be added upon hosting]"
+
+license-url: "https://github.com/GNEze/reservoirpressure-uq/blob/main/LICENSE"
+repository-code: "https://github.com/GNEze/reservoirpressure-uq"
 preferred-citation:
   type: article
-  title: "A Workflow for Uncertainty Quantification of Real-Time Reservoir Pressure Estimates Via Polynomial Chaos Expansions and Sparse Grids"
+  title: "Efficient Uncertainty Quantification of Real-Time Reservoir Pressure Estimates via Polynomial Chaos Expansion on Sparse Grids"
   authors:
     - family-names: "Eze"
       given-names: "Gabriel Nwachuku"
-      affiliation: "King Fahd University of Petroleum & Minerals"
+      affiliation: "College of Petroleum Engineering and Geosciences, King Fahd University of Petroleum & Minerals"
     - family-names: "Wang"
       given-names: "Yuzhu"
-      affiliation: "King Fahd University of Petroleum & Minerals"
-  journal: "[journal name — to be added upon acceptance]"
+      affiliation: "College of Petroleum Engineering and Geosciences, King Fahd University of Petroleum & Minerals"
   year: 2026
-  volume: "[to be added upon acceptance]"
-  pages: "[to be added upon acceptance]"
-  doi: "[to be added upon acceptance]"
