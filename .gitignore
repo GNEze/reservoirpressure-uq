@@ -1,4 +1,4 @@
-# Raw data (not redistributed — see data/README.md)
+# Raw data (not redistributed. See data/README.md)
 data/*
 !data/README.md
 
