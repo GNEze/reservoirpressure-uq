@@ -28,11 +28,8 @@ repository-code: "https://github.com/GNEze/reservoirpressure-uq"
 preferred-citation:
   type: article
   title: "Efficient Uncertainty Quantification of Real-Time Reservoir Pressure Estimates via Polynomial Chaos Expansion on Sparse Grids"
-  authors:
+  author:
     - family-names: "Eze"
       given-names: "Gabriel Nwachuku"
-      affiliation: "College of Petroleum Engineering and Geosciences, King Fahd University of Petroleum & Minerals"
-    - family-names: "Wang"
-      given-names: "Yuzhu"
       affiliation: "College of Petroleum Engineering and Geosciences, King Fahd University of Petroleum & Minerals"
   year: 2026
